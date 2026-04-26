@@ -321,6 +321,62 @@ header {
 .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.72rem; color: var(--muted); font-weight: 600; }
 .legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
 
+/* ── Onboarding ── */
+.onboard-overlay {
+  display: flex; position: fixed; inset: 0;
+  background: rgba(240,244,255,0.85);
+  backdrop-filter: blur(12px);
+  align-items: center; justify-content: center; z-index: 200;
+}
+.onboard-overlay.hidden { display: none; }
+.onboard {
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 28px;
+  padding: 52px 56px 44px;
+  text-align: center; max-width: 480px; width: 94%;
+  box-shadow: 0 12px 48px rgba(79,110,247,0.14), 0 32px 64px rgba(0,0,0,0.08);
+  animation: popup 0.35s cubic-bezier(0.34,1.56,0.64,1);
+}
+.onboard-logo { font-size: 2.8rem; margin-bottom: 8px; display: block; }
+.onboard h1 {
+  font-size: 1.9rem; font-weight: 800; letter-spacing: -0.5px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  margin-bottom: 6px;
+}
+.onboard-sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 36px; }
+.steps {
+  display: flex; flex-direction: column; gap: 14px;
+  margin-bottom: 36px; text-align: left;
+}
+.step {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--surface2); border: 1.5px solid var(--border);
+  border-radius: 12px; padding: 14px 18px;
+}
+.step-num {
+  width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff; font-weight: 800; font-size: 0.85rem;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 3px 10px var(--glow);
+}
+.step-text { font-size: 0.88rem; font-weight: 600; color: var(--text); line-height: 1.4; }
+.step-text span { color: var(--muted); font-weight: 500; font-size: 0.8rem; display: block; margin-top: 1px; }
+.onboard-start {
+  width: 100%;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff; border: none; border-radius: 12px;
+  padding: 14px; font-size: 1rem; font-weight: 700;
+  cursor: pointer; transition: opacity 0.15s, transform 0.15s;
+  font-family: 'Inter', sans-serif;
+  box-shadow: 0 6px 20px var(--glow);
+  letter-spacing: 0.02em;
+}
+.onboard-start:hover { opacity: 0.9; transform: translateY(-1px); }
+.onboard-start:active { transform: translateY(0); }
+
 /* ── Modal ── */
 .modal-overlay {
   display: none; position: fixed; inset: 0;
@@ -389,6 +445,36 @@ footer { margin-top: auto; padding-top: 40px; font-size: 0.72rem; color: var(--m
 </style>
 </head>
 <body>
+
+<!-- Onboarding overlay -->
+<div class="onboard-overlay" id="onboard">
+  <div class="onboard">
+    <span class="onboard-logo">⌨️</span>
+    <h1>Typing Dojo</h1>
+    <p class="onboard-sub">ブラインドタッチを楽しく習得しよう</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-text">レッスンを選ぶ
+          <span>ホームポジション → 上段 → 下段 → 単語 → 文章の順がおすすめ</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text">入力エリアをクリック
+          <span>画面中央のテキストエリアをクリックするとスタート</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text">キーボードを見ずに打つ！
+          <span>キーの色と「次のキー」ガイドを手がかりに指の位置を覚えよう</span>
+        </div>
+      </div>
+    </div>
+    <button class="onboard-start" id="onboard-start">はじめる →</button>
+  </div>
+</div>
 
 <header>
   <div class="logo">
@@ -478,51 +564,92 @@ footer { margin-top: auto; padding-top: 40px; font-size: 0.72rem; color: var(--m
 // ── Sound Engine (Web Audio API) ──────────────────────────────
 const audio = new (window.AudioContext || window.webkitAudioContext)();
 let soundOn = true;
+let keyCount = 0; // for subtle pitch ladder effect
 
 function playKey() {
   if (!soundOn) return;
-  const g = audio.createGain();
+  const t = audio.currentTime;
+
+  // ── noise click layer (mechanical feel) ──
+  const bufSize = audio.sampleRate * 0.04;
+  const buf = audio.createBuffer(1, bufSize, audio.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1);
+  const noise = audio.createBufferSource();
+  noise.buffer = buf;
+  const nf = audio.createBiquadFilter();
+  nf.type = 'bandpass'; nf.frequency.value = 3500; nf.Q.value = 1.2;
+  const ng = audio.createGain();
+  ng.gain.setValueAtTime(0.14, t);
+  ng.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+  noise.connect(nf); nf.connect(ng); ng.connect(audio.destination);
+  noise.start(t); noise.stop(t + 0.04);
+
+  // ── tonal "thock" layer ──
+  const pitch = 280 + (keyCount % 8) * 12; // subtle pitch ladder
+  keyCount++;
   const o = audio.createOscillator();
-  const f = audio.createBiquadFilter();
-  f.type = 'bandpass'; f.frequency.value = 1800; f.Q.value = 0.8;
-  o.type = 'triangle';
-  o.frequency.setValueAtTime(900 + Math.random() * 200, audio.currentTime);
-  o.frequency.exponentialRampToValueAtTime(600, audio.currentTime + 0.04);
-  g.gain.setValueAtTime(0.18, audio.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.07);
-  o.connect(f); f.connect(g); g.connect(audio.destination);
-  o.start(); o.stop(audio.currentTime + 0.08);
+  o.type = 'sine';
+  o.frequency.setValueAtTime(pitch, t);
+  o.frequency.exponentialRampToValueAtTime(pitch * 0.55, t + 0.06);
+  const og = audio.createGain();
+  og.gain.setValueAtTime(0.22, t);
+  og.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+  o.connect(og); og.connect(audio.destination);
+  o.start(t); o.stop(t + 0.08);
+
+  // ── high shimmer ──
+  const s = audio.createOscillator();
+  s.type = 'triangle';
+  s.frequency.setValueAtTime(1800 + Math.random() * 400, t);
+  const sg = audio.createGain();
+  sg.gain.setValueAtTime(0.04, t);
+  sg.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
+  s.connect(sg); sg.connect(audio.destination);
+  s.start(t); s.stop(t + 0.03);
 }
 
 function playError() {
   if (!soundOn) return;
-  const g = audio.createGain();
-  const o = audio.createOscillator();
-  o.type = 'sawtooth';
-  o.frequency.setValueAtTime(220, audio.currentTime);
-  o.frequency.exponentialRampToValueAtTime(160, audio.currentTime + 0.10);
-  g.gain.setValueAtTime(0.12, audio.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.12);
-  o.connect(g); g.connect(audio.destination);
-  o.start(); o.stop(audio.currentTime + 0.13);
+  const t = audio.currentTime;
+  [180, 160].forEach((freq, i) => {
+    const o = audio.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(freq, t + i * 0.07);
+    const g = audio.createGain();
+    g.gain.setValueAtTime(0.13, t + i * 0.07);
+    g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.07 + 0.10);
+    o.connect(g); g.connect(audio.destination);
+    o.start(t + i * 0.07); o.stop(t + i * 0.07 + 0.12);
+  });
 }
 
 function playComplete() {
   if (!soundOn) return;
-  const notes = [523, 659, 784, 1047];
-  notes.forEach((freq, i) => {
-    const g = audio.createGain();
-    const o = audio.createOscillator();
-    o.type = 'sine';
-    o.frequency.setValueAtTime(freq, audio.currentTime + i * 0.11);
-    g.gain.setValueAtTime(0, audio.currentTime + i * 0.11);
-    g.gain.linearRampToValueAtTime(0.2, audio.currentTime + i * 0.11 + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + i * 0.11 + 0.22);
-    o.connect(g); g.connect(audio.destination);
-    o.start(audio.currentTime + i * 0.11);
-    o.stop(audio.currentTime + i * 0.11 + 0.25);
+  const t = audio.currentTime;
+  // rising arpeggio with layered sine + triangle
+  [[523,0],[659,0.10],[784,0.20],[1047,0.32],[1319,0.46]].forEach(([freq, delay]) => {
+    ['sine','triangle'].forEach((type, li) => {
+      const o = audio.createOscillator();
+      o.type = type;
+      o.frequency.setValueAtTime(freq, t + delay);
+      const g = audio.createGain();
+      const vol = li === 0 ? 0.22 : 0.08;
+      g.gain.setValueAtTime(0, t + delay);
+      g.gain.linearRampToValueAtTime(vol, t + delay + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, t + delay + 0.35);
+      o.connect(g); g.connect(audio.destination);
+      o.start(t + delay); o.stop(t + delay + 0.4);
+    });
   });
 }
+
+// ── Onboarding ───────────────────────────────────────────────
+document.getElementById('onboard-start').addEventListener('click', () => {
+  if (audio.state === 'suspended') audio.resume();
+  document.getElementById('onboard').classList.add('hidden');
+  document.getElementById('hidden-input').focus();
+});
 
 // sound toggle
 document.getElementById('sound-toggle').addEventListener('click', () => {
