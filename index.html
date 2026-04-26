@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Typing Dojo — ブラインドタッチ練習</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --border: #2d3148;
+    --text: #e2e8f0;
+    --muted: #4a5568;
+    --accent: #6366f1;
+
+    --finger-pinky:  #ef4444;
+    --finger-ring:   #f97316;
+    --finger-middle: #eab308;
+    --finger-index:  #22c55e;
+    --finger-thumb:  #3b82f6;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px 48px;
+  }
+
+  /* ── Header ── */
+  header {
+    width: 100%;
+    max-width: 760px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+  }
+  .logo {
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: var(--accent);
+  }
+  .logo span { color: var(--text); }
+
+  /* ── Lesson tabs ── */
+  .tabs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 24px;
+  }
+  .tab {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .tab:hover { border-color: var(--accent); color: var(--text); }
+  .tab.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 600;
+  }
+
+  /* ── Stats bar ── */
+  .stats {
+    width: 100%;
+    max-width: 760px;
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    margin-bottom: 20px;
+  }
+  .stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .stat-val {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-lbl {
+    font-size: 0.72rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  /* ── Typing area ── */
+  .typing-card {
+    width: 100%;
+    max-width: 760px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 32px 36px;
+    margin-bottom: 20px;
+    cursor: text;
+    outline: none;
+    position: relative;
+  }
+  .typing-card:focus-within { border-color: var(--accent); }
+
+  #text-display {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 1.55rem;
+    line-height: 2.2;
+    letter-spacing: 0.04em;
+    word-break: break-all;
+    user-select: none;
+  }
+
+  .char { position: relative; }
+  .char.correct { color: var(--muted); }
+  .char.incorrect { color: #ef4444; background: rgba(239,68,68,0.15); border-radius: 3px; }
+  .char.cursor {
+    position: relative;
+  }
+  .char.cursor::before {
+    content: '';
+    position: absolute;
+    left: -1px;
+    top: 4px;
+    bottom: 4px;
+    width: 2px;
+    background: var(--accent);
+    border-radius: 2px;
+    animation: blink 1s step-end infinite;
+  }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  .hint-row {
+    margin-top: 16px;
+    font-size: 0.85rem;
+    color: var(--muted);
+    text-align: center;
+  }
+  .hint-key {
+    display: inline-block;
+    background: var(--border);
+    border-radius: 5px;
+    padding: 1px 8px;
+    font-family: monospace;
+    font-size: 0.95rem;
+    color: var(--text);
+    font-weight: 700;
+  }
+  .hint-finger {
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  /* ── Error flash ── */
+  .error-flash { animation: errflash 0.18s ease; }
+  @keyframes errflash {
+    0%   { background: rgba(239,68,68,0.08); }
+    50%  { background: rgba(239,68,68,0.18); }
+    100% { background: transparent; }
+  }
+
+  /* ── Keyboard ── */
+  .keyboard-wrap {
+    width: 100%;
+    max-width: 760px;
+    margin-bottom: 20px;
+  }
+  .keyboard {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 18px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
+  }
+  .kb-row {
+    display: flex;
+    gap: 5px;
+  }
+  .key {
+    width: 46px;
+    height: 44px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: monospace;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text);
+    background: #22253a;
+    transition: all 0.1s;
+    position: relative;
+    user-select: none;
+  }
+  .key.space { width: 240px; letter-spacing: 0.1em; font-size: 0.65rem; color: var(--muted); }
+
+  /* finger color dots */
+  .key::after {
+    content: '';
+    position: absolute;
+    bottom: 5px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+  }
+  .f-pinky::after  { background: var(--finger-pinky); }
+  .f-ring::after   { background: var(--finger-ring); }
+  .f-middle::after { background: var(--finger-middle); }
+  .f-index::after  { background: var(--finger-index); }
+  .f-thumb::after  { background: var(--finger-thumb); }
+
+  /* active key highlight */
+  .key.active {
+    transform: scale(1.12);
+    border-width: 2px;
+    z-index: 2;
+    box-shadow: 0 0 14px 2px currentColor;
+  }
+  .key.active.f-pinky  { border-color: var(--finger-pinky);  color: var(--finger-pinky);  box-shadow: 0 0 14px 2px var(--finger-pinky); }
+  .key.active.f-ring   { border-color: var(--finger-ring);   color: var(--finger-ring);   box-shadow: 0 0 14px 2px var(--finger-ring); }
+  .key.active.f-middle { border-color: var(--finger-middle); color: var(--finger-middle); box-shadow: 0 0 14px 2px var(--finger-middle); }
+  .key.active.f-index  { border-color: var(--finger-index);  color: var(--finger-index);  box-shadow: 0 0 14px 2px var(--finger-index); }
+  .key.active.f-thumb  { border-color: var(--finger-thumb);  color: var(--finger-thumb);  box-shadow: 0 0 14px 2px var(--finger-thumb); }
+
+  /* legend */
+  .legend {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 14px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+  .legend-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 40px 48px;
+    text-align: center;
+    max-width: 400px;
+    width: 90%;
+  }
+  .modal h2 { font-size: 1.5rem; margin-bottom: 6px; }
+  .modal-stats {
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    margin: 24px 0;
+  }
+  .modal-stat-val { font-size: 2.2rem; font-weight: 700; color: var(--accent); }
+  .modal-stat-lbl { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  .btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 28px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin: 4px;
+    transition: opacity 0.15s;
+  }
+  .btn:hover { opacity: 0.88; }
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { color: var(--text); border-color: var(--text); }
+
+  /* hidden input trick */
+  #hidden-input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+  }
+
+  footer {
+    margin-top: auto;
+    padding-top: 32px;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Typing<span>Dojo</span></div>
+  <div style="font-size:0.78rem;color:var(--muted)">クリックして練習スタート</div>
+</header>
+
+<!-- lesson tabs -->
+<div class="tabs" id="tabs">
+  <div class="tab active" data-lesson="homerow">ホームポジション</div>
+  <div class="tab" data-lesson="toprow">上段</div>
+  <div class="tab" data-lesson="bottomrow">下段</div>
+  <div class="tab" data-lesson="words">単語</div>
+  <div class="tab" data-lesson="sentences">文章</div>
+</div>
+
+<!-- stats -->
+<div class="stats">
+  <div class="stat"><div class="stat-val" id="wpm">—</div><div class="stat-lbl">WPM</div></div>
+  <div class="stat"><div class="stat-val" id="acc">—</div><div class="stat-lbl">精度</div></div>
+  <div class="stat"><div class="stat-val" id="timer">0:00</div><div class="stat-lbl">タイム</div></div>
+</div>
+
+<!-- typing area -->
+<div class="typing-card" id="typing-card" tabindex="0">
+  <div id="text-display"></div>
+  <div class="hint-row" id="hint-row">クリックして練習を開始</div>
+  <input id="hidden-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+</div>
+
+<!-- keyboard -->
+<div class="keyboard-wrap">
+  <div class="keyboard" id="keyboard"></div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--finger-pinky)"></div>小指</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--finger-ring)"></div>薬指</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--finger-middle)"></div>中指</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--finger-index)"></div>人差し指</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--finger-thumb)"></div>親指</div>
+  </div>
+</div>
+
+<!-- completion modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h2>🎉 完了！</h2>
+    <p style="color:var(--muted);font-size:0.85rem;margin-top:4px">お疲れ様でした</p>
+    <div class="modal-stats">
+      <div><div class="modal-stat-val" id="m-wpm">—</div><div class="modal-stat-lbl">WPM</div></div>
+      <div><div class="modal-stat-val" id="m-acc">—</div><div class="modal-stat-lbl">精度</div></div>
+      <div><div class="modal-stat-val" id="m-time">—</div><div class="modal-stat-lbl">タイム</div></div>
+    </div>
+    <button class="btn" id="btn-retry">もう一度</button>
+    <button class="btn btn-ghost" id="btn-next">次のレッスン</button>
+  </div>
+</div>
+
+<footer>TypingDojo — ブラインドタッチ練習アプリ</footer>
+
+<script>
+// ── Lessons ──────────────────────────────────────────────────
+const LESSONS = {
+  homerow:   "asdf jkl; asdf jkl; fjfj dkdk slsl a;a; fds jkl fdsa jkl; asdfjkl; fjdk slal",
+  toprow:    "qwert yuiop qwert yuiop try your power quit we type row top",
+  bottomrow: "zxcv bnm zxcv bnm buzz mix van box cab next zinc",
+  words:     "the quick brown fox jumps over the lazy dog pack my box with five dozen liquor jugs",
+  sentences: "Practice makes perfect. Keep your eyes off the keyboard. Use all ten fingers. Type without looking."
+};
+const LESSON_ORDER = ["homerow","toprow","bottomrow","words","sentences"];
+
+// ── Keyboard layout ─────────────────────────────────────────
+// Each key: [label, fingerClass]
+// finger classes: f-pinky f-ring f-middle f-index f-thumb
+const ROWS = [
+  [ // number row omitted for simplicity
+  ],
+  [
+    ['q','f-pinky'],['w','f-ring'],['e','f-middle'],['r','f-index'],['t','f-index'],
+    ['y','f-index'],['u','f-index'],['i','f-middle'],['o','f-ring'],['p','f-pinky']
+  ],
+  [
+    ['a','f-pinky'],['s','f-ring'],['d','f-middle'],['f','f-index'],['g','f-index'],
+    ['h','f-index'],['j','f-index'],['k','f-middle'],['l','f-ring'],[';','f-pinky']
+  ],
+  [
+    ['z','f-pinky'],['x','f-ring'],['c','f-middle'],['v','f-index'],['b','f-index'],
+    ['n','f-index'],['m','f-index'],[',','f-middle'],['.','f-ring'],['/','f-pinky']
+  ]
+];
+
+const FINGER_NAMES = {
+  'f-pinky':  { left: '左小指', right: '右小指' },
+  'f-ring':   { left: '左薬指', right: '右薬指' },
+  'f-middle': { left: '左中指', right: '右中指' },
+  'f-index':  { left: '左人差し指', right: '右人差し指' },
+  'f-thumb':  { left: '左親指 / 右親指', right: '右親指' }
+};
+
+// Build keymap: char → {el, fingerClass, side}
+const keyMap = {};
+
+function buildKeyboard() {
+  const kb = document.getElementById('keyboard');
+  kb.innerHTML = '';
+
+  ROWS.forEach((row, ri) => {
+    if (row.length === 0) return;
+    const rowEl = document.createElement('div');
+    rowEl.className = 'kb-row';
+
+    // Offset for stagger
+    if (ri === 2) rowEl.style.marginLeft = '18px';
+    if (ri === 3) rowEl.style.marginLeft = '28px';
+
+    row.forEach(([label, finger]) => {
+      const k = document.createElement('div');
+      k.className = `key ${finger}`;
+      k.textContent = label.toUpperCase();
+      k.dataset.key = label;
+      rowEl.appendChild(k);
+
+      const side = ['q','w','e','r','t','a','s','d','f','g','z','x','c','v','b'].includes(label) ? 'left' : 'right';
+      keyMap[label] = { el: k, finger, side };
+    });
+
+    kb.appendChild(rowEl);
+  });
+
+  // Space bar row
+  const spaceRow = document.createElement('div');
+  spaceRow.className = 'kb-row';
+  spaceRow.style.marginLeft = '72px';
+  const spaceKey = document.createElement('div');
+  spaceKey.className = 'key space f-thumb';
+  spaceKey.textContent = 'SPACE';
+  spaceKey.dataset.key = ' ';
+  spaceRow.appendChild(spaceKey);
+  kb.appendChild(spaceRow);
+  keyMap[' '] = { el: spaceKey, finger: 'f-thumb', side: 'left' };
+}
+
+// ── State ────────────────────────────────────────────────────
+let currentLesson = 'homerow';
+let text = '';
+let pos = 0;
+let errors = 0;
+let totalTyped = 0;
+let startTime = null;
+let timerInterval = null;
+let activeKeyEl = null;
+
+// ── Init ─────────────────────────────────────────────────────
+function loadLesson(name) {
+  currentLesson = name;
+  text = LESSONS[name];
+  pos = 0; errors = 0; totalTyped = 0; startTime = null;
+  clearInterval(timerInterval);
+
+  document.getElementById('wpm').textContent = '—';
+  document.getElementById('acc').textContent = '—';
+  document.getElementById('timer').textContent = '0:00';
+
+  renderText();
+  highlightNextKey();
+  updateHint();
+
+  // Update tabs
+  document.querySelectorAll('.tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.lesson === name);
+  });
+}
+
+function renderText() {
+  const display = document.getElementById('text-display');
+  display.innerHTML = '';
+  for (let i = 0; i < text.length; i++) {
+    const span = document.createElement('span');
+    span.className = 'char';
+    span.textContent = text[i] === ' ' ? ' ' : text[i];
+    span.dataset.i = i;
+    if (i < pos) span.classList.add('correct');
+    if (i === pos) span.classList.add('cursor');
+    display.appendChild(span);
+  }
+}
+
+function updateCharAt(i, cls) {
+  const span = document.querySelector(`.char[data-i="${i}"]`);
+  if (!span) return;
+  span.className = 'char ' + cls;
+}
+
+function highlightNextKey() {
+  if (activeKeyEl) activeKeyEl.classList.remove('active');
+  activeKeyEl = null;
+  if (pos >= text.length) return;
+  const ch = text[pos].toLowerCase();
+  if (keyMap[ch]) {
+    activeKeyEl = keyMap[ch].el;
+    activeKeyEl.classList.add('active');
+  }
+}
+
+function updateHint() {
+  const hint = document.getElementById('hint-row');
+  if (pos >= text.length) { hint.textContent = ''; return; }
+  const ch = text[pos];
+  if (ch === ' ') {
+    hint.innerHTML = `次のキー: <span class="hint-key">Space</span> → <span class="hint-finger">親指</span>`;
+    return;
+  }
+  const info = keyMap[ch.toLowerCase()];
+  if (!info) { hint.textContent = ''; return; }
+  const fingerName = FINGER_NAMES[info.finger]?.[info.side] || info.finger;
+  hint.innerHTML = `次のキー: <span class="hint-key">${ch.toUpperCase()}</span> → <span class="hint-finger">${fingerName}</span>`;
+}
+
+// ── Input handling ───────────────────────────────────────────
+document.getElementById('typing-card').addEventListener('click', () => {
+  document.getElementById('hidden-input').focus();
+});
+
+document.getElementById('hidden-input').addEventListener('keydown', e => {
+  if (e.key === 'Tab' || e.key === 'Enter') { e.preventDefault(); return; }
+
+  if (pos >= text.length) return;
+
+  const expected = text[pos];
+  const pressed = e.key;
+
+  // Start timer on first keypress
+  if (!startTime) {
+    startTime = Date.now();
+    timerInterval = setInterval(updateTimerDisplay, 250);
+  }
+
+  totalTyped++;
+
+  if (pressed === expected) {
+    updateCharAt(pos, 'correct');
+    pos++;
+    if (pos < text.length) updateCharAt(pos, 'cursor');
+    updateStats();
+    highlightNextKey();
+    updateHint();
+
+    if (pos === text.length) {
+      clearInterval(timerInterval);
+      setTimeout(showModal, 300);
+    }
+  } else {
+    errors++;
+    // flash error
+    const card = document.getElementById('typing-card');
+    card.classList.remove('error-flash');
+    void card.offsetWidth;
+    card.classList.add('error-flash');
+    updateStats();
+  }
+
+  e.preventDefault();
+});
+
+// ── Stats ────────────────────────────────────────────────────
+function updateStats() {
+  if (!startTime) return;
+  const elapsed = (Date.now() - startTime) / 1000 / 60; // minutes
+  const words = pos / 5;
+  const wpm = elapsed > 0 ? Math.round(words / elapsed) : 0;
+  const acc = totalTyped > 0 ? Math.round(((totalTyped - errors) / totalTyped) * 100) : 100;
+
+  document.getElementById('wpm').textContent = wpm;
+  document.getElementById('acc').textContent = acc + '%';
+}
+
+function updateTimerDisplay() {
+  if (!startTime) return;
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  const m = Math.floor(elapsed / 60);
+  const s = elapsed % 60;
+  document.getElementById('timer').textContent = `${m}:${s.toString().padStart(2,'0')}`;
+}
+
+function getStats() {
+  const elapsed = startTime ? (Date.now() - startTime) / 1000 : 0;
+  const words = pos / 5;
+  const minutes = elapsed / 60;
+  const wpm = minutes > 0 ? Math.round(words / minutes) : 0;
+  const acc = totalTyped > 0 ? Math.round(((totalTyped - errors) / totalTyped) * 100) : 100;
+  const m = Math.floor(elapsed / 60);
+  const s = Math.floor(elapsed % 60);
+  const time = `${m}:${s.toString().padStart(2,'0')}`;
+  return { wpm, acc, time };
+}
+
+// ── Modal ────────────────────────────────────────────────────
+function showModal() {
+  const { wpm, acc, time } = getStats();
+  document.getElementById('m-wpm').textContent = wpm;
+  document.getElementById('m-acc').textContent = acc + '%';
+  document.getElementById('m-time').textContent = time;
+  document.getElementById('modal').classList.add('show');
+}
+
+document.getElementById('btn-retry').addEventListener('click', () => {
+  document.getElementById('modal').classList.remove('show');
+  loadLesson(currentLesson);
+  document.getElementById('hidden-input').focus();
+});
+
+document.getElementById('btn-next').addEventListener('click', () => {
+  document.getElementById('modal').classList.remove('show');
+  const idx = LESSON_ORDER.indexOf(currentLesson);
+  const next = LESSON_ORDER[(idx + 1) % LESSON_ORDER.length];
+  loadLesson(next);
+  document.getElementById('hidden-input').focus();
+});
+
+// ── Tabs ────────────────────────────────────────────────────
+document.getElementById('tabs').addEventListener('click', e => {
+  const tab = e.target.closest('.tab');
+  if (!tab) return;
+  loadLesson(tab.dataset.lesson);
+  document.getElementById('hidden-input').focus();
+});
+
+// ── Start ────────────────────────────────────────────────────
+buildKeyboard();
+loadLesson('homerow');
+</script>
+</body>
+</html>
